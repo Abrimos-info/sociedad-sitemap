@@ -4,7 +4,8 @@ const { encodeSitemapURL } = require('node-uri');
 const commandLineArgs = require('command-line-args');
 const optionDefinitions = [
     { name: 'elasticUri', alias: 'u', type: String, defaultValue: 'http://localhost:9200/' }, // Elasticsearch URI
-    { name: 'baseUrl', alias: 'b', type: String }
+    { name: 'baseUrl', alias: 'b', type: String },
+    { name: 'location', alias: 'l', type: String }
 ];
 const args = commandLineArgs(optionDefinitions);
 if(!args.elasticUri || !args.baseUrl) {
@@ -28,11 +29,15 @@ run();
 async function run() {
     console.log('Starting')
     
-    console.log('Getting proveedores...')
-    sitemaps.push(...await buildSitemaps('gt_proveedores', 'proveedor', query, 'nit', args.baseUrl + '/proveedor/'));
+    console.log('Generating static sitemap...');
+    buildStaticSitemap(args.baseUrl);
+    sitemaps.push('sitemap_static.xml');
+
+    // console.log('Getting proveedores...')
+    // sitemaps.push(...await buildSitemaps('gt_proveedores', 'proveedor', query, 'nit', args.baseUrl + '/proveedor/'));
     
-    console.log('Getting contracts...')
-    sitemaps.push(...await buildSitemaps('gt_guatecompras', 'contract', query, 'nog_concurso', args.baseUrl + '/contract/'));
+    // console.log('Getting contracts...')
+    // sitemaps.push(...await buildSitemaps('gt_guatecompras', 'contract', query, 'nog_concurso', args.baseUrl + '/contract/'));
 
     console.log('Getting entidades...')
     query = {
@@ -48,7 +53,8 @@ async function run() {
     }
     sitemaps.push(...await buildSitemaps('gt_guatecompras', 'entidad', query, 'name', args.baseUrl + '/entidad/', true)); 
 
-    console.log(sitemaps);
+    console.log('Generating sitemap index...');
+    buildSitemapIndex(sitemaps, args.baseUrl, args.location);
     console.log('Finished');
 }
 
@@ -62,6 +68,26 @@ function getClient(elasticNode) {
         console.error("getClient",e);
     }
     return client;
+}
+
+function buildSitemapIndex(filenames, base, location) {
+    let uris = [];
+    filenames.map( file => {
+        uris.push( base + '/' + location + '/' + file );
+    } );
+
+    writeSitemap(uris, 'index', 0, true);
+}
+
+function buildStaticSitemap(base) {
+    let uris = [];
+    
+    uris.push(base + '/');
+    uris.push(base + '/buscador');
+    uris.push(base + '/acerca-de');
+    uris.push(base + '/privacidad');
+
+    writeSitemap(uris, 'static');
 }
 
 async function buildSitemaps(index, type, docQuery, idField, location, aggs=false) {
@@ -147,14 +173,25 @@ async function buildSitemaps(index, type, docQuery, idField, location, aggs=fals
     return sitemapFiles;
 }
 
-function writeSitemap(uris, type, number) {
-    let filename = 'sitemap_' + type + '_' + number + '.xml'
+function writeSitemap(uris, type, number=0, index=false) {
+    let filename = 'sitemap_' + type + ((number > 0)? '_' + number : '') + '.xml'
     let content = '<?xml version="1.0" encoding="UTF-8"?>\n';
-    content += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
+    if(index)
+        content += '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
+    else
+        content += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
+
     uris.map(u => {
-        content += '<url><loc>' + u + '</loc></url>\n';
+        if(index)
+            content += '<sitemap><loc>' + u + '</loc></sitemap>\n';
+        else
+            content += '<url><loc>' + u + '</loc></url>\n';
     });
-    content += '</urlset>';
+    
+    if(index)
+        content += '</sitemapindex>';
+    else
+        content += '</urlset>';
 
     console.log('Writing:', filename);
     fs.writeFileSync('./sitemaps/' + filename, content);
