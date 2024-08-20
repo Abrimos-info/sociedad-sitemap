@@ -5,7 +5,7 @@ Generador de sitemaps para [sociedad.info](sociedad.info)
 ## Uso
 
 ```
-node index.js -u [Elasticsearch URL] -b [URL base]
+node index.js -u [Elasticsearch URL] -b [URL base] -l [ubicación]
 ```
 
 ### Parámetros
@@ -13,6 +13,7 @@ node index.js -u [Elasticsearch URL] -b [URL base]
 ```
 -u      --elasticUri    URL de Elasticsearch
 -b      --baseUrl       URL base para todos los URLs (https://sociedad.info)
+-l      --location      Ubicación en filesystem (static/sitemaps)
 ```
 
 ## Salida
