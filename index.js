@@ -33,11 +33,11 @@ async function run() {
     buildStaticSitemap(args.baseUrl);
     sitemaps.push('sitemap_static.xml');
 
-    // console.log('Getting proveedores...')
-    // sitemaps.push(...await buildSitemaps('gt_proveedores', 'proveedor', query, 'nit', args.baseUrl + '/proveedor/'));
+    console.log('Getting proveedores...')
+    sitemaps.push(...await buildSitemaps('gt_proveedores', 'proveedor', query, 'nit', args.baseUrl + '/proveedor/'));
     
-    // console.log('Getting contracts...')
-    // sitemaps.push(...await buildSitemaps('gt_guatecompras', 'contract', query, 'nog_concurso', args.baseUrl + '/contract/'));
+    console.log('Getting contracts...')
+    sitemaps.push(...await buildSitemaps('gt_guatecompras', 'contract', query, 'nog_concurso', args.baseUrl + '/contract/'));
 
     console.log('Getting entidades...')
     query = {
