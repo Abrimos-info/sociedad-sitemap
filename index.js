@@ -36,9 +36,6 @@ async function run() {
     console.log('Getting proveedores...')
     sitemaps.push(...await buildSitemaps('gt_proveedores', 'proveedor', query, 'nit', args.baseUrl + '/proveedor/'));
     
-    console.log('Getting contracts...')
-    sitemaps.push(...await buildSitemaps('gt_guatecompras', 'contract', query, 'nog_concurso', args.baseUrl + '/contract/'));
-
     console.log('Getting entidades...')
     query = {
         "size": 0, 
@@ -52,6 +49,9 @@ async function run() {
         }
     }
     sitemaps.push(...await buildSitemaps('gt_guatecompras', 'entidad', query, 'name', args.baseUrl + '/entidad/', true)); 
+
+    console.log('Getting contracts...')
+    sitemaps.push(...await buildSitemaps('gt_guatecompras', 'contract', query, 'nog_concurso', args.baseUrl + '/contract/'));
 
     console.log('Generating sitemap index...');
     buildSitemapIndex(sitemaps, args.baseUrl, args.location);
@@ -187,6 +187,14 @@ function writeSitemap(uris, type, number=0, index=false) {
         else
             content += '<url><loc>' + u + '</loc></url>\n';
     });
+
+    //TODO: Use date from database
+    let date = new Date().toUTCString("yyyy-MM-ddTHH:mm:sszzz");
+    //Add lastmod
+    content+='<lastmod>'+date+'</lastmod>\n';
+
+    //TODO: Adaptar a la frecuencia de corrida del ETL de contratos en cada caso
+    content+='<changefreq>weekly</changefreq>\n';
     
     if(index)
         content += '</sitemapindex>';
