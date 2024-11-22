@@ -33,8 +33,8 @@ async function run() {
     buildStaticSitemap(args.baseUrl);
     sitemaps.push('sitemap_static.xml');
 
-    // console.log('Getting proveedores...')
-    // sitemaps.push(...await buildSitemaps('gt_proveedores', 'proveedor', query, 'nit', 'fecha_sat', args.baseUrl + '/proveedor/'));
+    console.log('Getting proveedores...')
+    sitemaps.push(...await buildSitemaps('gt_proveedores', 'proveedor', query, 'nit', 'fecha_sat', args.baseUrl + '/guatemala/proveedor/'));
     
     console.log('Getting entidades...')
     query_entidad = {
@@ -56,10 +56,10 @@ async function run() {
             }
         }
     }
-    sitemaps.push(...await buildSitemaps('gt_guatecompras', 'entidad', query_entidad, 'name', 'lastmod', args.baseUrl + '/entidad/', true)); 
+    sitemaps.push(...await buildSitemaps('gt_guatecompras', 'entidad', query_entidad, 'name', 'lastmod', args.baseUrl + '/guatemala/entidad/', true)); 
 
     console.log('Getting contracts...')
-    sitemaps.push(...await buildSitemaps('gt_guatecompras', 'contract', query, 'nog_concurso', 'fecha_publicacion', args.baseUrl + '/contract/'));
+    sitemaps.push(...await buildSitemaps('gt_guatecompras', 'contract', query, 'nog_concurso', 'fecha_publicacion', args.baseUrl + '/guatemala/contract/'));
 
     console.log('Generating sitemap index...');
     buildSitemapIndex(sitemaps, args.baseUrl, args.location);
