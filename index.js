@@ -93,6 +93,7 @@ function buildStaticSitemap(base) {
     uris.push({uri: base + '/', lastmod: new Date().toISOString("yyyy-MM-ddTHH:mm:sszzz")});
     uris.push({uri: base + '/buscador', lastmod: new Date().toISOString("yyyy-MM-ddTHH:mm:sszzz")});
     uris.push({uri: base + '/acerca-de', lastmod: new Date().toISOString("yyyy-MM-ddTHH:mm:sszzz")});
+    uris.push({uri: base + '/contacto', lastmod: new Date().toISOString("yyyy-MM-ddTHH:mm:sszzz")});
     uris.push({uri: base + '/privacidad', lastmod: new Date().toISOString("yyyy-MM-ddTHH:mm:sszzz")});
 
     writeSitemap(uris, 'static');
