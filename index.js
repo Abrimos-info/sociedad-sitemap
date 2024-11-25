@@ -152,7 +152,12 @@ async function buildSitemaps(index, type, docQuery, idField, lastModField, locat
                 let id = '';
                 if(hit.hasOwnProperty('fields') && hit.fields.hasOwnProperty(idField)) {
                     id = hit.fields[idField][0];
-                    lastmod = hit.fields[lastModField][0];
+                    if (hit.fields[lastModField]) {
+                        lastmod = hit.fields[lastModField][0];
+                    }
+                    else {
+                        lastmod = null;
+                    }
                     uriBuffer.push({uri: encodeSitemapURL(location + id), lastmod: lastmod});
                 }
                 allDocs++;
