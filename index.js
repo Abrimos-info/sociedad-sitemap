@@ -200,7 +200,7 @@ function writeSitemap(uriBuffer, type, number=0, index=false) {
     uriBuffer.map(u => {
         if(index)
             content += '<sitemap><loc>' + u.uri + '</loc><lastmod>'+u.lastmod+'</lastmod></sitemap>\n';
-        else
+        else {
             content += '<url><loc>' + u.uri + '</loc>\n';
         
             //Add lastmod
@@ -208,6 +208,7 @@ function writeSitemap(uriBuffer, type, number=0, index=false) {
         
             //TODO: Adaptar a la frecuencia de corrida del ETL de contratos en cada caso
             content+='<changefreq>weekly</changefreq>\n</url>\n';
+        }
             
     });
     if(index)
