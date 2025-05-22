@@ -160,6 +160,7 @@ async function buildSitemaps(index, type, docQuery, idField, lastModField, locat
                     id = hit.fields[idField][0];
                     if (hit.fields[lastModField]) {
                         lastmod = hit.fields[lastModField][0];
+                        if(type == 'proveedor') lastmod = new Date('2025-05-22').toISOString();
                     }
                     else {
                         lastmod = null;
@@ -213,7 +214,7 @@ function writeSitemap(uriBuffer, type, number=0, index=false) {
             content+='<lastmod>'+u.lastmod+'</lastmod>\n';
         
             //TODO: Adaptar a la frecuencia de corrida del ETL de contratos en cada caso
-            content+='<changefreq>weekly</changefreq>\n</url>\n';
+            content+='<changefreq>daily</changefreq>\n</url>\n';
         }
             
     });
