@@ -109,7 +109,7 @@ async function buildSitemaps(index, type, docQuery, idField, lastModField, locat
     let uriBuffer = [];
     const responseQueue = []
 
-    let options = {}
+    let options = { body: {} }
     if(!aggs) {
         options = {
             "index": index,
@@ -120,6 +120,7 @@ async function buildSitemaps(index, type, docQuery, idField, lastModField, locat
                 "fields": [ idField, lastModField ]
             }
         };
+        Object.assign(options.body, docQuery);
     }
     Object.assign(options.body, docQuery);
     const response = await client.search(options)
@@ -128,7 +129,7 @@ async function buildSitemaps(index, type, docQuery, idField, lastModField, locat
 
     if(aggs) {
         const data = responseQueue.shift();
-        let buckets = data.aggregations[idField].buckets;
+        let buckets = data.body.aggregations[idField].buckets;
         if(buckets.length > 0) {
             buckets.map(b => {
                 allDocs++;
@@ -150,10 +151,10 @@ async function buildSitemaps(index, type, docQuery, idField, lastModField, locat
     }
     else {
         while (responseQueue.length) {
-            const body = responseQueue.shift()
+            const response = responseQueue.shift()
             // collect the docs from this response
-            for(let i=0; i<body.hits.hits.length; i++) {
-                let hit = body.hits.hits[i];
+            for(let i=0; i<response.body.hits.hits.length; i++) {
+                let hit = response.body.hits.hits[i];
                 let id = '';
                 if(hit.hasOwnProperty('fields') && hit.fields.hasOwnProperty(idField)) {
                     id = hit.fields[idField][0];
@@ -174,7 +175,7 @@ async function buildSitemaps(index, type, docQuery, idField, lastModField, locat
             }
     
             // check to see if we have collected all docs
-            if(body.hits.total.value <= allDocs) {
+            if(response.body.hits.total.value <= allDocs) {
                 sitemapCount++;
                 sitemapFiles.push(writeSitemap(uriBuffer, type, sitemapCount));
                 uriBuffer = [];
@@ -184,7 +185,7 @@ async function buildSitemaps(index, type, docQuery, idField, lastModField, locat
             // get the next response if there are more docs to fetch
             responseQueue.push(
                 await client.scroll({
-                    scroll_id: body._scroll_id,
+                    scroll_id: response.body._scroll_id,
                     scroll: scrollTimeout
                 })
             )
