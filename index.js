@@ -13,6 +13,7 @@ if(!args.dbUri || !args.baseUrl) {
     process.exit(1);
 }
 
+const today = new Date();
 const dbNode = args.dbUri;
 let client = getClient(dbNode);
 const batchSize = 10000;
@@ -126,6 +127,7 @@ async function buildSitemaps(index, type, docQuery, idField, lastModField, locat
     const response = await client.search(options)
 
     responseQueue.push(response)
+    let id, lastmod, changefreq = null;
 
     if(aggs) {
         const data = responseQueue.shift();
@@ -133,9 +135,10 @@ async function buildSitemaps(index, type, docQuery, idField, lastModField, locat
         if(buckets.length > 0) {
             buckets.map(b => {
                 allDocs++;
-                let id = b.key;
-                let lastmod = b.lastmod.value_as_string;
-                uriBuffer.push({uri: encodeSitemapURL(location + id), lastmod: lastmod});
+                id = b.key;
+                lastmod = b.lastmod.value_as_string;
+                changefreq = determineChangefreq(type, lastmod);
+                uriBuffer.push({uri: encodeSitemapURL(location + id), lastmod: lastmod, changefreq: changefreq});
 
                 if(allDocs % sitemapItemCount == 0) {
                     sitemapCount++;
@@ -165,7 +168,8 @@ async function buildSitemaps(index, type, docQuery, idField, lastModField, locat
                     else {
                         lastmod = null;
                     }
-                    uriBuffer.push({uri: encodeSitemapURL(location + id), lastmod: lastmod});
+                    changefreq = determineChangefreq(type, lastmod);
+                    uriBuffer.push({uri: encodeSitemapURL(location + id), lastmod: lastmod, changefreq: changefreq});
                 }
                 allDocs++;
                 if(allDocs % sitemapItemCount == 0) {
@@ -214,7 +218,7 @@ function writeSitemap(uriBuffer, type, number=0, index=false) {
             content+='<lastmod>'+u.lastmod+'</lastmod>\n';
         
             //TODO: Adaptar a la frecuencia de corrida del ETL de contratos en cada caso
-            content+='<changefreq>daily</changefreq>\n</url>\n';
+            content+='<changefreq>'+u.changefreq+'</changefreq>\n</url>\n';
         }
             
     });
@@ -226,4 +230,22 @@ function writeSitemap(uriBuffer, type, number=0, index=false) {
     console.log('Writing:', filename);
     fs.writeFileSync('./sitemaps/' + filename, content);
     return filename;
+}
+
+function determineChangefreq(type, date) {
+    let lastModDate = today;
+    if(date)
+        lastModDate = new Date(date);
+
+    switch(type) {
+        case 'proveedor':
+            return 'monthly';
+        case 'entidad':
+        case 'contract':
+            let daysDifference = Math.floor((today.getTime() - lastModDate.getTime()) / (1000 * 3600 * 24));
+            if(daysDifference < 7) return 'daily';
+            if(daysDifference < 30) return 'weekly';
+            if(daysDifference < 90) return 'monthly';
+            else return 'yearly';
+    }
 }
