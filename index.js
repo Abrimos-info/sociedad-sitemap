@@ -33,9 +33,9 @@ run();
 async function run() {
     console.log('Starting')
     
-    console.log('Generating static sitemap...');
-    buildStaticSitemap(args.baseUrl);
-    sitemaps.push('sitemap_static.xml');
+    // console.log('Generating static sitemap...');
+    // buildStaticSitemap(args.baseUrl);
+    // sitemaps.push('sitemap_static.xml');
 
     console.log('Getting proveedores...')
     sitemaps.push(...await buildSitemaps(proveedoresIndex, 'proveedor', query, 'nit', 'fecha_sat', args.baseUrl + '/guatemala/proveedor/'));
@@ -84,6 +84,7 @@ function getClient(elasticNode) {
 
 function buildSitemapIndex(filenames, base, location) {
     let uris = [];
+    uris.push({uri: 'https://sociedad.info/sitemap-static.xml', lastmod: new Date().toISOString("yyyy-MM-ddTHH:mm:sszzz")} );
     filenames.map( file => {
         uris.push({uri:  base + '/' + location + '/' + file, lastmod: new Date().toISOString("yyyy-MM-ddTHH:mm:sszzz")} );
     } );
