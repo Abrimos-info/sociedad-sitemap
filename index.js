@@ -167,7 +167,7 @@ async function buildSitemaps(index, type, docQuery, idField, lastModField, locat
                     uriBuffer.push({uri: encodeSitemapURL(location + id), lastmod: lastmod});
                 }
                 allDocs++;
-                if(allDocs % 50000 == 0) {
+                if(allDocs % sitemapItemCount == 0) {
                     sitemapCount++;
                     sitemapFiles.push(writeSitemap(uriBuffer, type, sitemapCount));
                     uriBuffer = [];
