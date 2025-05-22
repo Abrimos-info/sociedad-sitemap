@@ -73,7 +73,7 @@ async function run() {
 function getClient(elasticNode) {
     let client = null;
     try {
-        client = new Client({ node: elasticNode, requestTimeout: 60000, maxRetries: 10, sniffOnStart: true, tls: { rejectUnauthorized: false }, resurrectStrategy: "none", compression: "gzip" })
+        client = new Client({ node: elasticNode, requestTimeout: 60000, maxRetries: 10, sniffOnStart: false, tls: { rejectUnauthorized: false }, resurrectStrategy: "none", compression: "gzip" })
     }
     catch (e) {
         console.error("getClient",e);
@@ -122,7 +122,6 @@ async function buildSitemaps(index, type, docQuery, idField, lastModField, locat
         };
     }
     Object.assign(options.body, docQuery);
-    console.log(options);
     const response = await client.search(options)
 
     responseQueue.push(response)
