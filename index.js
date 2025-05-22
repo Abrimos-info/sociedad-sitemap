@@ -1,20 +1,20 @@
 const fs = require('fs');
-const { Client } = require('@elastic/elasticsearch');
+const { Client } = require("@opensearch-project/opensearch");
 const { encodeSitemapURL } = require('node-uri');
 const commandLineArgs = require('command-line-args');
 const optionDefinitions = [
-    { name: 'elasticUri', alias: 'u', type: String, defaultValue: 'http://localhost:9200/' }, // Elasticsearch URI
+    { name: 'dbUri', alias: 'u', type: String, defaultValue: 'http://localhost:9200/' }, // Elasticsearch URI
     { name: 'baseUrl', alias: 'b', type: String },
     { name: 'location', alias: 'l', type: String }
 ];
 const args = commandLineArgs(optionDefinitions);
-if(!args.elasticUri || !args.baseUrl) {
+if(!args.dbUri || !args.baseUrl) {
     console.error("ERROR: missing params.");
     process.exit(1);
 }
 
-const elasticNode = args.elasticUri;
-let client = getClient(elasticNode);
+const dbNode = args.dbUri;
+let client = getClient(dbNode);
 const batchSize = 10000;
 const scrollTimeout = '600s';
 let query = {
@@ -23,6 +23,9 @@ let query = {
     }
 }
 let sitemaps = [];
+const proveedoresIndex = 'guatecompras_proveedores';
+const contratosIndex = 'guatecompras_contratos';
+const sitemapItemCount = 25000;
 
 run();
 
@@ -34,7 +37,7 @@ async function run() {
     sitemaps.push('sitemap_static.xml');
 
     console.log('Getting proveedores...')
-    sitemaps.push(...await buildSitemaps('gt_proveedores', 'proveedor', query, 'nit', 'fecha_sat', args.baseUrl + '/guatemala/proveedor/'));
+    sitemaps.push(...await buildSitemaps(proveedoresIndex, 'proveedor', query, 'nit', 'fecha_sat', args.baseUrl + '/guatemala/proveedor/'));
     
     console.log('Getting entidades...')
     query_entidad = {
@@ -56,10 +59,10 @@ async function run() {
             }
         }
     }
-    sitemaps.push(...await buildSitemaps('gt_guatecompras', 'entidad', query_entidad, 'name', 'lastmod', args.baseUrl + '/guatemala/entidad/', true)); 
+    sitemaps.push(...await buildSitemaps(contratosIndex, 'entidad', query_entidad, 'name', 'lastmod', args.baseUrl + '/guatemala/entidad/', true)); 
 
     console.log('Getting contracts...')
-    sitemaps.push(...await buildSitemaps('gt_guatecompras', 'contract', query, 'nog_concurso', 'fecha_publicacion', args.baseUrl + '/guatemala/contract/'));
+    sitemaps.push(...await buildSitemaps(contratosIndex, 'contract', query, 'nog_concurso', 'fecha_publicacion', args.baseUrl + '/guatemala/contract/'));
 
     console.log('Generating sitemap index...');
     buildSitemapIndex(sitemaps, args.baseUrl, args.location);
@@ -113,10 +116,13 @@ async function buildSitemaps(index, type, docQuery, idField, lastModField, locat
             "scroll": scrollTimeout,
             "size": batchSize,
             "_source": false,
-            "fields": [ idField, lastModField ]
+            "body": {
+                "fields": [ idField, lastModField ]
+            }
         };
     }
-    Object.assign(options, docQuery);
+    Object.assign(options.body, docQuery);
+    console.log(options);
     const response = await client.search(options)
 
     responseQueue.push(response)
@@ -131,7 +137,7 @@ async function buildSitemaps(index, type, docQuery, idField, lastModField, locat
                 let lastmod = b.lastmod.value_as_string;
                 uriBuffer.push({uri: encodeSitemapURL(location + id), lastmod: lastmod});
 
-                if(allDocs % 50000 == 0) {
+                if(allDocs % sitemapItemCount == 0) {
                     sitemapCount++;
                     sitemapFiles.push(writeSitemap(uriBuffer, type, sitemapCount));
                     uriBuffer = [];

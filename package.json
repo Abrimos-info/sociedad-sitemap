@@ -9,7 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@elastic/elasticsearch": "^8.15.0",
+    "@opensearch-project/opensearch": "^3.5.1",
     "command-line-args": "^6.0.0",
     "node-uri": "^1.1.2"
   }
