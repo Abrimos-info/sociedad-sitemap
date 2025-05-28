@@ -86,7 +86,7 @@ function buildSitemapIndex(filenames, base, location) {
     let uris = [];
     uris.push({uri: 'https://sociedad.info/sitemap-static.xml', lastmod: new Date().toISOString("yyyy-MM-ddTHH:mm:sszzz")} );
     filenames.map( file => {
-        uris.push({uri:  base + '/' + location + '/' + file, lastmod: new Date().toISOString("yyyy-MM-ddTHH:mm:sszzz")} );
+        uris.push({uri:  base + '/static/' + location + '/' + file, lastmod: new Date().toISOString("yyyy-MM-ddTHH:mm:sszzz")} );
     } );
 
     writeSitemap(uris, 'index', 0, true);
