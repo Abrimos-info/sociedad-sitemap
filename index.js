@@ -5,7 +5,8 @@ const commandLineArgs = require('command-line-args');
 const optionDefinitions = [
     { name: 'dbUri', alias: 'u', type: String, defaultValue: 'http://localhost:9200/' }, // Elasticsearch URI
     { name: 'baseUrl', alias: 'b', type: String },
-    { name: 'location', alias: 'l', type: String }
+    { name: 'location', alias: 'l', type: String },
+    { name: 'test', alias: 't', type: Boolean, defaultValue: false }
 ];
 const args = commandLineArgs(optionDefinitions);
 if(!args.dbUri || !args.baseUrl) {
@@ -27,6 +28,7 @@ let sitemaps = [];
 const proveedoresIndex = 'guatecompras_proveedores';
 const contratosIndex = 'guatecompras_contratos';
 const sitemapItemCount = 25000;
+let proveedores_cache = {}
 
 run();
 
@@ -37,8 +39,11 @@ async function run() {
     // buildStaticSitemap(args.baseUrl);
     // sitemaps.push('sitemap_static.xml');
 
+    console.log('Getting proveedores cache...')
+    proveedores_cache = await getProveedoresCache();
+    
     console.log('Getting proveedores...')
-    // sitemaps.push(...await buildSitemaps(proveedoresIndex, 'proveedor', query, 'nit', 'fecha_sat', args.baseUrl + '/guatemala/proveedor/'));
+    sitemaps.push(...await buildSitemaps(proveedoresIndex, 'proveedor', query, 'nit', 'fecha_sat', args.baseUrl + '/guatemala/proveedor/'));
     
     console.log('Getting entidades...')
     query_entidad = {
@@ -77,10 +82,10 @@ async function run() {
     sitemaps.push(...await buildSitemaps(contratosIndex, 'entidad', query_entidad, 'name', 'lastmod', args.baseUrl + '/guatemala/entidad/', true)); 
 
     console.log('Getting contracts...')
-    // sitemaps.push(...await buildSitemaps(contratosIndex, 'contract', query, 'nog_concurso', 'fecha_publicacion', args.baseUrl + '/guatemala/contract/'));
+    sitemaps.push(...await buildSitemaps(contratosIndex, 'contract', query, 'nog_concurso', 'fecha_publicacion', args.baseUrl + '/guatemala/contract/'));
 
     console.log('Generating sitemap index...');
-    // buildSitemapIndex(sitemaps, args.baseUrl, args.location);
+    buildSitemapIndex(sitemaps, args.baseUrl, args.location);
     console.log('Finished');
 }
 
@@ -187,13 +192,19 @@ async function buildSitemaps(index, type, docQuery, idField, lastModField, locat
                 let id = '';
                 if(hit.hasOwnProperty('fields') && hit.fields.hasOwnProperty(idField)) {
                     id = hit.fields[idField][0];
-                    if (hit.fields[lastModField]) {
+                    
+                    if(type == 'proveedor') {
+                        if(proveedores_cache.hasOwnProperty(id))
+                            lastmod = proveedores_cache[id];
+                        else if (hit.fields[lastModField]) 
+                            lastmod = hit.fields[lastModField][0];
+                        else lastmod = new Date('2025-05-22').toISOString();
+                    }
+                    else if (hit.fields[lastModField]) 
                         lastmod = hit.fields[lastModField][0];
-                        if(type == 'proveedor') lastmod = new Date('2025-05-22').toISOString();
-                    }
-                    else {
+                    else 
                         lastmod = null;
-                    }
+
                     changefreq = determineChangefreq(type, lastmod);
                     uriBuffer.push({uri: encodeSitemapURL(location + id), lastmod: lastmod, changefreq: changefreq});
                 }
@@ -227,6 +238,7 @@ async function buildSitemaps(index, type, docQuery, idField, lastModField, locat
 }
 
 function writeSitemap(uriBuffer, type, number=0, index=false) {
+    if(args.test) return '';
     let filename = 'sitemap_' + type + ((number > 0)? '_' + number : '') + '.xml'
     let content = '<?xml version="1.0" encoding="UTF-8"?>\n';
     if(index)
@@ -274,4 +286,43 @@ function determineChangefreq(type, date) {
             if(daysDifference < 90) return 'monthly';
             else return 'yearly';
     }
+}
+
+async function getProveedoresCache() {
+    let cache = {}
+    let docQuery = {
+        "size": 0,
+        "aggs": {
+            "name": {
+                "terms": {
+                    "size": 1000000,
+                    "field": "nit.keyword"
+                },
+                "aggs": {
+                    "lastmod": {
+                        "max": {
+                            "field": "fecha_publicacion", 
+                            "format": "yyyy-MM-dd HH:mm:sszzz"
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let options = { 
+        index: 'guatecompras_contratos',
+        body: {} 
+    }
+    
+    Object.assign(options.body, docQuery);
+    const response = await client.search(options)
+    let buckets = response.body.aggregations['name'].buckets;
+    
+    if(buckets.length > 0) {
+        buckets.map( b => {
+            cache[b.key] = b.lastmod.value_as_string;
+        } );
+    }
+
+    return cache;
 }
