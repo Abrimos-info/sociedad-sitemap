@@ -38,7 +38,7 @@ async function run() {
     // sitemaps.push('sitemap_static.xml');
 
     console.log('Getting proveedores...')
-    sitemaps.push(...await buildSitemaps(proveedoresIndex, 'proveedor', query, 'nit', 'fecha_sat', args.baseUrl + '/guatemala/proveedor/'));
+    // sitemaps.push(...await buildSitemaps(proveedoresIndex, 'proveedor', query, 'nit', 'fecha_sat', args.baseUrl + '/guatemala/proveedor/'));
     
     console.log('Getting entidades...')
     query_entidad = {
@@ -55,7 +55,21 @@ async function run() {
                             "field": "fecha_publicacion", 
                             "format": "yyyy-MM-dd HH:mm:sszzz"
                         }
-                    }  
+                    },
+                    "uc": {
+                        "terms": {
+                            "size": 1000,
+                            "field": "unidad_compradora.keyword"
+                        },
+                        "aggs": {
+                            "lastmod": {
+                                "max": {
+                                    "field": "fecha_publicacion",
+                                    "format": "yyyy-MM-dd HH:mm:sszzz"
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -63,10 +77,10 @@ async function run() {
     sitemaps.push(...await buildSitemaps(contratosIndex, 'entidad', query_entidad, 'name', 'lastmod', args.baseUrl + '/guatemala/entidad/', true)); 
 
     console.log('Getting contracts...')
-    sitemaps.push(...await buildSitemaps(contratosIndex, 'contract', query, 'nog_concurso', 'fecha_publicacion', args.baseUrl + '/guatemala/contract/'));
+    // sitemaps.push(...await buildSitemaps(contratosIndex, 'contract', query, 'nog_concurso', 'fecha_publicacion', args.baseUrl + '/guatemala/contract/'));
 
     console.log('Generating sitemap index...');
-    buildSitemapIndex(sitemaps, args.baseUrl, args.location);
+    // buildSitemapIndex(sitemaps, args.baseUrl, args.location);
     console.log('Finished');
 }
 
@@ -140,6 +154,17 @@ async function buildSitemaps(index, type, docQuery, idField, lastModField, locat
                 lastmod = b.lastmod.value_as_string;
                 changefreq = determineChangefreq(type, lastmod);
                 uriBuffer.push({uri: encodeSitemapURL(location + id), lastmod: lastmod, changefreq: changefreq});
+
+                if(b.uc?.buckets?.length > 0) {
+                    let ucs = b.uc.buckets;
+                    ucs.map( uc => {
+                        allDocs++;
+                        let uc_id = uc.key;
+                        let uc_lastmod = uc.lastmod.value_as_string;
+                        let uc_changefreq = determineChangefreq(type, uc_lastmod);
+                        uriBuffer.push({uri: encodeSitemapURL(location + id + '/unidad-compradora/' + uc_id), lastmod: uc_lastmod, changefreq: uc_changefreq});
+                    } )
+                }
 
                 if(allDocs % sitemapItemCount == 0) {
                     sitemapCount++;
