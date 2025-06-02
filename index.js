@@ -302,7 +302,7 @@ async function getProveedoresCache() {
                     "lastmod": {
                         "max": {
                             "field": "fecha_publicacion", 
-                            "format": "yyyy-MM-dd HH:mm:sszzz"
+                            "format": "yyyy-MM-dd'T'HH:mm:sszzz" // Investigar cómo se agrega la T
                         }
                     }
                 }
