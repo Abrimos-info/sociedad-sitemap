@@ -160,14 +160,16 @@ async function buildSitemaps(index, type, docQuery, idField, lastModField, locat
                 changefreq = determineChangefreq(type, lastmod);
                 uriBuffer.push({uri: encodeSitemapURL(location + id), lastmod: lastmod, changefreq: changefreq});
 
-                if(b.uc?.buckets?.length > 0) {
+                if(b.uc?.buckets?.length > 0 && type == "entidad") {
                     let ucs = b.uc.buckets;
                     ucs.map( uc => {
                         allDocs++;
                         let uc_id = uc.key;
-                        let uc_lastmod = uc.lastmod.value_as_string;
-                        let uc_changefreq = determineChangefreq(type, uc_lastmod);
-                        uriBuffer.push({uri: encodeSitemapURL(location + id + '/unidad-compradora/' + uc_id), lastmod: uc_lastmod, changefreq: uc_changefreq});
+                        if(uc.key.length > 0) {
+                            let uc_lastmod = uc.lastmod.value_as_string;
+                            let uc_changefreq = determineChangefreq(type, uc_lastmod);
+                            uriBuffer.push({uri: encodeSitemapURL(location + id + '/unidad-compradora/' + uc_id), lastmod: uc_lastmod, changefreq: uc_changefreq});
+                        }
                     } )
                 }
 
@@ -302,7 +304,7 @@ async function getProveedoresCache() {
                     "lastmod": {
                         "max": {
                             "field": "fecha_publicacion", 
-                            "format": "yyyy-MM-dd'T'HH:mm:sszzz" // Investigar cómo se agrega la T
+                            "format": "yyyy-MM-dd'T'HH:mm:sszzz"
                         }
                     }
                 }
