@@ -58,7 +58,7 @@ async function run() {
                     "lastmod": {
                         "max": {
                             "field": "fecha_publicacion", 
-                            "format": "yyyy-MM-dd HH:mm:sszzz"
+                            "format": "yyyy-MM-dd'T'HH:mm:sszzz"
                         }
                     },
                     "uc": {
@@ -70,7 +70,7 @@ async function run() {
                             "lastmod": {
                                 "max": {
                                     "field": "fecha_publicacion",
-                                    "format": "yyyy-MM-dd HH:mm:sszzz"
+                                    "format": "yyyy-MM-dd'T'HH:mm:sszzz"
                                 }
                             }
                         }
