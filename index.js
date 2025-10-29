@@ -40,6 +40,7 @@ const buyersIndex = 'sociedad_buyers';
 const suppliersIndex = 'sociedad_suppliers';
 const sitemapItemCount = 25000;
 let countries = {}
+let countryList = {};
 let baseUrl = args.baseUrl + ( (!args.baseUrl.match(/\/$/))? '/' : '' );
 
 run();
@@ -76,6 +77,10 @@ function getClient(elasticNode) {
 function buildSitemapIndex(filenames, base, location) {
     let uris = [];
     uris.push({uri: 'https://sociedad.info/sitemap-static.xml', lastmod: new Date().toISOString("yyyy-MM-ddTHH:mm:sszzz")} );
+    Object.keys(countryList).map( code => {
+        let country = countryList[code];
+        uris.push({uri:  base + '/' + country, lastmod: new Date().toISOString("yyyy-MM-ddTHH:mm:sszzz")})
+    } )
     filenames.map( file => {
         uris.push({uri:  base + '/static/' + location + '/' + file, lastmod: new Date().toISOString("yyyy-MM-ddTHH:mm:sszzz")} );
         if(args.test) console.log('Index URI:', base + '/static/' + location + '/' + file);
@@ -123,6 +128,7 @@ async function buildSitemaps(index, type, docQuery, idField, lastModField, locat
                 if( countries[hit.fields['country'][0]] ) {
                     countryCode = hit.fields['country'][0];
                     country = countries[countryCode].slug;
+                    if(!countryList.hasOwnProperty(countryCode)) countryList[countryCode] = country;
                     
                     uri = location + country + '/' + type + '/' + id;
                     if(uri.length < 2048) {
