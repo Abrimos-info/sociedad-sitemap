@@ -56,6 +56,9 @@ async function run() {
 
     console.log('Getting suppliers...')
     sitemaps.push(...await buildSitemaps(suppliersIndex, 'supplier', query, 'id', 'updated_date', baseUrl));
+
+    console.log('Generating countries sitemap...');
+    sitemaps.push(buildCountrySitemap(baseUrl));
     
     console.log('Generating sitemap index...');
     buildSitemapIndex(sitemaps, args.baseUrl, args.location);
@@ -74,13 +77,21 @@ function getClient(elasticNode) {
     return client;
 }
 
+function buildCountrySitemap(base) {
+    let sitemapFiles = [];
+    let list = [];
+    Object.keys(countryList).map( code => {
+        let country = countryList[code];
+        list.push({uri:  base + '/' + country, lastmod: new Date().toISOString("yyyy-MM-ddTHH:mm:sszzz")})
+    } )
+
+    sitemapFiles.push(writeSitemap(list, '', 'countries', 0));
+    return sitemapFiles;
+}
+
 function buildSitemapIndex(filenames, base, location) {
     let uris = [];
     uris.push({uri: 'https://sociedad.info/sitemap-static.xml', lastmod: new Date().toISOString("yyyy-MM-ddTHH:mm:sszzz")} );
-    Object.keys(countryList).map( code => {
-        let country = countryList[code];
-        uris.push({uri:  base + '/' + country, lastmod: new Date().toISOString("yyyy-MM-ddTHH:mm:sszzz")})
-    } )
     filenames.map( file => {
         uris.push({uri:  base + '/static/' + location + '/' + file, lastmod: new Date().toISOString("yyyy-MM-ddTHH:mm:sszzz")} );
         if(args.test) console.log('Index URI:', base + '/static/' + location + '/' + file);
@@ -194,7 +205,7 @@ function writeSitemap(uriList, country, type, number=0, index=false) {
             //Add lastmod
             content+='<lastmod>'+u.lastmod+'</lastmod>\n';
             
-            if(!index) {
+            if(!index && u.changefreq) {
                 //TODO: Adaptar a la frecuencia de corrida del ETL de contratos en cada caso
                 content+='<changefreq>'+u.changefreq+'</changefreq>\n</url>\n';
             }
