@@ -82,7 +82,7 @@ function buildCountrySitemap(base) {
     let list = [];
     Object.keys(countryList).map( code => {
         let country = countryList[code];
-        list.push({uri:  base + '/' + country, lastmod: new Date().toISOString("yyyy-MM-ddTHH:mm:sszzz")})
+        list.push({uri:  base + country, lastmod: new Date().toISOString("yyyy-MM-ddTHH:mm:sszzz")})
     } )
 
     sitemapFiles.push(writeSitemap(list, '', 'countries', 0));
@@ -205,9 +205,11 @@ function writeSitemap(uriList, country, type, number=0, index=false) {
             //Add lastmod
             content+='<lastmod>'+u.lastmod+'</lastmod>\n';
             
-            if(!index && u.changefreq) {
+            if(!index) {
                 //TODO: Adaptar a la frecuencia de corrida del ETL de contratos en cada caso
-                content+='<changefreq>'+u.changefreq+'</changefreq>\n</url>\n';
+                if(u.changefreq)
+                    content+='<changefreq>'+u.changefreq+'</changefreq>\n';
+                content+='</url>\n';
             }
         }
             
