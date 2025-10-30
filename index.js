@@ -201,12 +201,11 @@ function writeSitemap(uriList, country, type, number=0, index=false) {
             content += '<sitemap><loc>' + u.uri + '</loc><lastmod>'+u.lastmod+'</lastmod></sitemap>\n';
         else {
             content += '<url><loc>' + u.uri + '</loc>\n';
-        
-            //Add lastmod
-            content+='<lastmod>'+u.lastmod+'</lastmod>\n';
+            
+            if(u.lastmod)
+                content+='<lastmod>'+u.lastmod+'</lastmod>\n';
             
             if(!index) {
-                //TODO: Adaptar a la frecuencia de corrida del ETL de contratos en cada caso
                 if(u.changefreq)
                     content+='<changefreq>'+u.changefreq+'</changefreq>\n';
                 content+='</url>\n';
