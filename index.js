@@ -188,7 +188,6 @@ async function buildSitemaps(index, type, docQuery, idField, lastModField, locat
 }
 
 function writeSitemap(uriList, country, type, number=0, index=false) {
-    if(args.test) return '';
     let filename = 'sitemap_' + (country? country + '_' : '') + type + ((number > 0)? '_' + number : '') + '.xml'
     let content = '<?xml version="1.0" encoding="UTF-8"?>\n';
     if(index)
@@ -202,7 +201,7 @@ function writeSitemap(uriList, country, type, number=0, index=false) {
         else {
             content += '<url><loc>' + u.uri + '</loc>\n';
             
-            if(u.lastmod)
+            if(u.lastmod && isValidSitemapDate(u.lastmod))
                 content+='<lastmod>'+u.lastmod+'</lastmod>\n';
             
             if(!index) {
@@ -219,7 +218,8 @@ function writeSitemap(uriList, country, type, number=0, index=false) {
         content += '</urlset>';
 
     console.log('Writing:', filename);
-    fs.writeFileSync('./sitemaps/' + filename, content);
+    if(!args.test)
+        fs.writeFileSync('./sitemaps/' + filename, content);
     return filename;
 }
 
@@ -251,4 +251,15 @@ async function getCountriesFile(path) {
     }
     
     return data;
+}
+
+function isValidSitemapDate(date) {
+    let dateObj = new Date(date);
+    
+    if(isNaN(dateObj) || dateObj.getFullYear() < 2000) { 
+        console.log(date, dateObj);
+        return false;
+    }
+    
+    return true;
 }
