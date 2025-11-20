@@ -148,7 +148,6 @@ async function buildSitemaps(index, type, docQuery, idField, lastModField, locat
                         // if(args.test) console.log('Country:', country, 'URI:', uri, lastmod, changefreq);
 
                         if(uriBuffer[countryCode].uris.length == sitemapItemCount) {
-                            if(args.test) console.log('Writing', type, 'sitemap for country:', countryCode, '#:', uriBuffer[countryCode].count);
                             sitemapFiles.push(writeSitemap(uriBuffer[countryCode].uris, countryCode, type, uriBuffer[countryCode].count));
                             uriBuffer[countryCode].count++;
                             uriBuffer[countryCode].uris = [];
@@ -256,10 +255,7 @@ async function getCountriesFile(path) {
 function isValidSitemapDate(date) {
     let dateObj = new Date(date);
     
-    if(isNaN(dateObj) || dateObj.getFullYear() < 2000) { 
-        console.log(date, dateObj);
-        return false;
-    }
+    if(isNaN(dateObj) || dateObj.getFullYear() < 2000) return false;
     
     return true;
 }
