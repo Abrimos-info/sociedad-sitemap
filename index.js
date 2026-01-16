@@ -38,7 +38,7 @@ if(args.country) {
 let sitemaps = [];
 const buyersIndex = 'sociedad_buyers';
 const suppliersIndex = 'sociedad_suppliers';
-const sitemapItemCount = 25000;
+const sitemapItemCount = 10000;
 let countries = {}
 let countryList = {};
 let baseUrl = args.baseUrl + ( (!args.baseUrl.match(/\/$/))? '/' : '' );
