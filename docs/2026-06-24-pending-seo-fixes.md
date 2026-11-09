@@ -79,6 +79,7 @@ Contexto: `sociedad-web-front/docs/2026-11-09-pendientes-seo-e-infra.md`, punto 
 - **Publicación atómica.** Escribe en `sitemaps.tmp` y reemplaza `sitemaps` al final. Si falla, sale con código 1 y deja publicados los anteriores. Si no generó sitemaps de compradores o de proveedores, falla. Los archivos que dejan de generarse desaparecen.
 - **`lastmod` del índice.** Cada sitemap hijo conserva el `lastmod` anterior si su contenido no cambió.
 - **Personas sin actividad.** No se listan las personas de GT sin `has_awards` que no aparecen como `representatives.id` en ninguna ficha. Es la misma regla que `sociedad-web-front/lib/person-indexing.js`, que les pone `noindex,follow`. Si cambia en un lado, cambiarla en el otro.
+- **Personas de ES e IT.** No se listan las personas físicas detectables por identificador: DNI o NIE en España (salvo nombre con forma societaria) y codice fiscale en Italia, con o sin contratos. Unas 219.000 fichas. SE y HU no tienen formato que identifique personas.
 - **Unidades compradoras.** Las `buyer_unit` se listan como `/buyer/{member_of.id}/buyer-unit/{id}`. `/buyer/{id}` responde 301 a esa URL desde el front.
 - **`--limit` / `-n`.** Solo para pruebas: corta cada índice después de N documentos.
 

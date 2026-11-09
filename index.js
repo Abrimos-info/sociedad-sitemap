@@ -64,7 +64,12 @@ let changedSitemaps = 0;
 // sociedad-web-front/lib/person-indexing.js, que les pone noindex: persona por
 // classification, sin has_awards y sin aparecer en representatives.id de
 // ninguna ficha. Si cambia allá, cambiarla acá.
+// En ES e IT: toda persona física detectable por su identificador fiscal, con o
+// sin contratos (opentender no trae classification ni has_awards).
 const PERSON_CLASSIFICATIONS = new Set(['INDIVIDUAL', 'Persona Individual', 'Comerciante Individual']);
+const ES_PERSON_ID = /^(0?[0-9]{8}-?[A-Z]|[XYZ][0-9]{7}-?[A-Z])$/i;
+const IT_PERSON_ID = /^(IT)?[A-Z]{6}[0-9]{2}[A-Z][0-9]{2}[A-Z][0-9]{3}[A-Z]$/i;
+const ES_COMPANY_NAME = /(\bS\.?\s?L\.?(\s?[UP]\.?)?$|\bS\.?\s?A\.?(\s?U\.?)?$|\bU\.?T\.?E\b|\bSOCIEDAD\b|\bASOCIACI[OÓ]N\b|\bFUNDACI[OÓ]N\b|\bCOOPERATIVA\b|\bC\.?\s?B\.?$|\bLTDA?\b|\bLIMITED\b|\bS\.?L\.?\s|\bS\.?A\.?\s)/i;
 let representativeIds = new Set();
 let skippedPersons = 0;
 
@@ -168,6 +173,10 @@ function isDeindexedPerson(fields, id) {
     const country = fields['country'] && fields['country'][0];
     const classification = fields['classification'] && fields['classification'][0];
     const hasAwards = fields['has_awards'] && fields['has_awards'][0];
+    const identifier = ((fields['identifier'] && fields['identifier'][0]) || '').trim();
+    const name = (fields['name'] && fields['name'][0]) || '';
+    if(country == 'ES') return ES_PERSON_ID.test(identifier) && !ES_COMPANY_NAME.test(name);
+    if(country == 'IT') return IT_PERSON_ID.test(identifier);
     if(country != 'GT') return false;
     if(!PERSON_CLASSIFICATIONS.has(classification)) return false;
     if(hasAwards === true) return false;
@@ -248,7 +257,7 @@ async function buildSitemaps(index, type, docQuery, idField, lastModField, locat
             "size": batchSize,
             "_source": false,
             "body": {
-                "fields": [ idField, lastModField, 'country', 'classification', 'has_awards', 'member_of.id' ]
+                "fields": [ idField, lastModField, 'country', 'classification', 'has_awards', 'member_of.id', 'identifier', 'name' ]
             }
     };
     Object.assign(options.body, docQuery);
