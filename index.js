@@ -1,4 +1,5 @@
 const fs = require('fs');
+const path = require('path');
 const { Client } = require("@opensearch-project/opensearch");
 const { encodeSitemapURL } = require('node-uri');
 const commandLineArgs = require('command-line-args');
@@ -8,7 +9,9 @@ const optionDefinitions = [
     { name: 'location', alias: 'l', type: String },
     { name: 'countries', alias: 'c', type: String },
     { name: 'country', alias: 'd', type: String },
-    { name: 'test', alias: 't', type: Boolean, defaultValue: false }
+    { name: 'test', alias: 't', type: Boolean, defaultValue: false },
+    // Solo para pruebas: corta cada índice después de N documentos.
+    { name: 'limit', alias: 'n', type: Number }
 ];
 const args = commandLineArgs(optionDefinitions);
 if(!args.dbUri || !args.baseUrl) {
@@ -36,35 +39,81 @@ if(args.country) {
     }
 }
 let sitemaps = [];
-const buyersIndex = 'sociedad_buyers';
-const suppliersIndex = 'sociedad_suppliers';
+// Desde 2026-06 hay un alias por país (sociedad_suppliers_guatemala, _brasil, ...)
+// y ya no existen sociedad_buyers ni sociedad_suppliers. Mismo patrón que usa el front.
+const buyersIndex = 'sociedad_buyers_*';
+const suppliersIndex = 'sociedad_suppliers_*';
 const sitemapItemCount = 10000;
 let countries = {}
 let countryList = {};
 let baseUrl = args.baseUrl + ( (!args.baseUrl.match(/\/$/))? '/' : '' );
 
-run();
+// Los archivos se escriben en una carpeta temporal y reemplazan a la publicada
+// recién al final, así una corrida que falla no deja una mezcla de archivos
+// nuevos y viejos. static/sitemaps del front es un symlink a OUT_DIR.
+const OUT_DIR = './sitemaps';
+const TMP_DIR = './sitemaps.tmp';
+const OLD_DIR = './sitemaps.old';
+
+// Personas físicas de GT que no se listan. Misma regla que
+// sociedad-web-front/lib/person-indexing.js, que les pone noindex: persona por
+// classification, sin has_awards y sin aparecer en representatives.id de
+// ninguna ficha. Si cambia allá, cambiarla acá.
+const PERSON_CLASSIFICATIONS = new Set(['INDIVIDUAL', 'Persona Individual', 'Comerciante Individual']);
+let representativeIds = new Set();
+let skippedPersons = 0;
+
+run().catch(e => {
+    console.error('ERROR: sitemap generation failed, published sitemaps left untouched.', e && (e.meta && JSON.stringify(e.meta.body) || e.stack || e));
+    process.exit(1);
+});
 
 async function run() {
     console.log('Starting')
-    
+
     console.log('Getting countries file...')
     countries = await getCountriesFile(args.countries);
 
+    if(!args.test) {
+        fs.rmSync(TMP_DIR, { recursive: true, force: true });
+        fs.mkdirSync(TMP_DIR);
+    }
+
     console.log('Getting buyers...')
-    sitemaps.push(...await buildSitemaps(buyersIndex, 'buyer', query, 'id', 'updated_date', baseUrl));
+    const buyerFiles = await buildSitemaps(buyersIndex, 'buyer', query, 'id', 'updated_date', baseUrl);
+    sitemaps.push(...buyerFiles);
+
+    console.log('Getting representatives...')
+    representativeIds = await getRepresentativeIds(suppliersIndex);
+    console.log('Representatives:', representativeIds.size);
 
     console.log('Getting suppliers...')
-    sitemaps.push(...await buildSitemaps(suppliersIndex, 'supplier', query, 'id', 'updated_date', baseUrl));
+    const supplierFiles = await buildSitemaps(suppliersIndex, 'supplier', query, 'id', 'updated_date', baseUrl);
+    sitemaps.push(...supplierFiles);
+    console.log('Persons left out of the supplier sitemaps:', skippedPersons);
+
+    if(buyerFiles.length == 0 || supplierFiles.length == 0)
+        throw new Error('No buyer or supplier sitemaps were generated (buyers: ' + buyerFiles.length + ', suppliers: ' + supplierFiles.length + ')');
 
     console.log('Generating countries sitemap...');
     sitemaps.push(buildCountrySitemap(baseUrl));
-    
+
     console.log('Generating sitemap index...');
     buildSitemapIndex(sitemaps, args.baseUrl, args.location);
+
+    if(!args.test) publish();
     console.log('Finished');
 }
 
+// Reemplaza la carpeta publicada por la nueva con dos renames. Los archivos que
+// ya no se generan (por ejemplo si bajó la cantidad de sitemaps) desaparecen.
+function publish() {
+    fs.rmSync(OLD_DIR, { recursive: true, force: true });
+    if(fs.existsSync(OUT_DIR)) fs.renameSync(OUT_DIR, OLD_DIR);
+    fs.renameSync(TMP_DIR, OUT_DIR);
+    fs.rmSync(OLD_DIR, { recursive: true, force: true });
+    console.log('Published', sitemaps.length + 1, 'files to', OUT_DIR);
+}
 
 function getClient(elasticNode) {
     let client = null;
@@ -75,6 +124,45 @@ function getClient(elasticNode) {
         console.error("getClient",e);
     }
     return client;
+}
+
+// Todos los ids que aparecen como representante en alguna ficha, de cualquier país,
+// igual que la relación representatives.id -> id de la ficha de proveedor del front.
+async function getRepresentativeIds(index) {
+    const ids = new Set();
+    let after = undefined;
+    while(true) {
+        const response = await client.search({
+            index: index,
+            body: {
+                size: 0,
+                aggs: {
+                    reps: {
+                        composite: {
+                            size: 10000,
+                            sources: [ { id: { terms: { field: 'representatives.id.keyword' } } } ],
+                            ...(after && { after: after })
+                        }
+                    }
+                }
+            }
+        });
+        const agg = response.body.aggregations.reps;
+        agg.buckets.forEach(b => ids.add(b.key.id));
+        if(!agg.after_key || agg.buckets.length == 0) break;
+        after = agg.after_key;
+    }
+    return ids;
+}
+
+function isDeindexedPerson(fields, id) {
+    const country = fields['country'] && fields['country'][0];
+    const classification = fields['classification'] && fields['classification'][0];
+    const hasAwards = fields['has_awards'] && fields['has_awards'][0];
+    if(country != 'GT') return false;
+    if(!PERSON_CLASSIFICATIONS.has(classification)) return false;
+    if(hasAwards === true) return false;
+    return !representativeIds.has(id);
 }
 
 function buildCountrySitemap(base) {
@@ -89,15 +177,50 @@ function buildCountrySitemap(base) {
     return sitemapFiles;
 }
 
+// El lastmod de cada sitemap hijo cambia solo si cambió su contenido. Si se
+// pusiera la fecha de la corrida en todos, Google aprende a ignorarlo.
 function buildSitemapIndex(filenames, base, location) {
+    const now = new Date().toISOString();
+    const previous = readPreviousIndexLastmods();
     let uris = [];
-    uris.push({uri: 'https://sociedad.info/sitemap-static.xml', lastmod: new Date().toISOString("yyyy-MM-ddTHH:mm:sszzz")} );
+    let unchanged = 0;
+    uris.push({uri: 'https://sociedad.info/sitemap-static.xml', lastmod: now} );
     filenames.map( file => {
-        uris.push({uri:  base + '/static/' + location + '/' + file, lastmod: new Date().toISOString("yyyy-MM-ddTHH:mm:sszzz")} );
-        if(args.test) console.log('Index URI:', base + '/static/' + location + '/' + file);
+        const uri = base + '/static/' + location + '/' + file;
+        let lastmod = now;
+        if(!args.test && previous[uri] && sameContent(file)) {
+            lastmod = previous[uri];
+            unchanged++;
+        }
+        uris.push({uri: uri, lastmod: lastmod} );
+        if(args.test) console.log('Index URI:', uri);
     } );
+    console.log('Sitemaps unchanged since last run:', unchanged, 'of', filenames.length);
 
     writeSitemap(uris, '', 'index', 0, true);
+}
+
+function readPreviousIndexLastmods() {
+    const lastmods = {};
+    try {
+        const xml = fs.readFileSync(path.join(OUT_DIR, 'sitemap_index.xml'), 'utf8');
+        const re = /<loc>([^<]+)<\/loc><lastmod>([^<]+)<\/lastmod>/g;
+        let m;
+        while((m = re.exec(xml)) !== null) lastmods[m[1]] = m[2];
+    }
+    catch(e) {
+        console.log('No previous sitemap index, every lastmod is new.');
+    }
+    return lastmods;
+}
+
+function sameContent(file) {
+    try {
+        return fs.readFileSync(path.join(OUT_DIR, file)).equals(fs.readFileSync(path.join(TMP_DIR, file)));
+    }
+    catch(e) {
+        return false;
+    }
 }
 
 async function buildSitemaps(index, type, docQuery, idField, lastModField, location) {
@@ -112,7 +235,7 @@ async function buildSitemaps(index, type, docQuery, idField, lastModField, locat
             "size": batchSize,
             "_source": false,
             "body": {
-                "fields": [ idField, lastModField, 'country' ]
+                "fields": [ idField, lastModField, 'country', 'classification', 'has_awards', 'member_of.id' ]
             }
     };
     Object.assign(options.body, docQuery);
@@ -120,32 +243,46 @@ async function buildSitemaps(index, type, docQuery, idField, lastModField, locat
 
     responseQueue.push(response)
     let lastmod, changefreq, country = null;
+    let scrollId = null;
 
     while (responseQueue.length) {
         const response = responseQueue.shift()
+        scrollId = response.body._scroll_id;
         // collect the docs from this response
         for(let i=0; i<response.body.hits.hits.length; i++) {
             let hit = response.body.hits.hits[i];
             let id = '';
             let uri = '';
+            allDocs++;
             if(hit.hasOwnProperty('fields') && hit.fields.hasOwnProperty(idField)) {
                 id = hit.fields[idField][0];
-                if (hit.fields[lastModField]) 
+                if (hit.fields[lastModField])
                     lastmod = hit.fields[lastModField][0];
-                else 
+                else
                     lastmod = null;
                 changefreq = determineChangefreq(type, lastmod);
 
-                if( countries[hit.fields['country'][0]] ) {
-                    countryCode = hit.fields['country'][0];
+                if(type == 'supplier' && isDeindexedPerson(hit.fields, id)) {
+                    skippedPersons++;
+                    continue;
+                }
+
+                if( hit.fields['country'] && countries[hit.fields['country'][0]] ) {
+                    const countryCode = hit.fields['country'][0];
                     country = countries[countryCode].slug;
                     if(!countryList.hasOwnProperty(countryCode)) countryList[countryCode] = country;
-                    
-                    uri = location + country + '/' + type + '/' + id;
+
+                    // Unidad compradora: su URL propia es la anidada bajo la entidad.
+                    // /buyer/{uc} responde 301 a esta (sociedad-web-front, itemPage).
+                    const parentId = hit.fields['member_of.id'] && hit.fields['member_of.id'][0];
+                    const isBuyerUnit = type == 'buyer' && hit.fields['classification'] && hit.fields['classification'][0] == 'buyer_unit' && parentId;
+                    if(isBuyerUnit)
+                        uri = location + country + '/buyer/' + parentId + '/buyer-unit/' + id;
+                    else
+                        uri = location + country + '/' + type + '/' + id;
                     if(uri.length < 2048) {
                         if(!uriBuffer.hasOwnProperty(countryCode)) uriBuffer[countryCode] = { count: 1, uris: [] };
                         uriBuffer[countryCode].uris.push({uri: encodeSitemapURL(uri), lastmod: lastmod, changefreq: changefreq});
-                        // if(args.test) console.log('Country:', country, 'URI:', uri, lastmod, changefreq);
 
                         if(uriBuffer[countryCode].uris.length == sitemapItemCount) {
                             sitemapFiles.push(writeSitemap(uriBuffer[countryCode].uris, countryCode, type, uriBuffer[countryCode].count));
@@ -153,14 +290,14 @@ async function buildSitemaps(index, type, docQuery, idField, lastModField, locat
                             uriBuffer[countryCode].uris = [];
                         }
                     }
-                    
+
                 }
             }
-            allDocs++;
         }
 
         // check to see if we have collected all docs
-        if(response.body.hits.total.value <= allDocs) {
+        const reachedLimit = args.limit && allDocs >= args.limit;
+        if(response.body.hits.total.value <= allDocs || response.body.hits.hits.length == 0 || reachedLimit) {
             // Write all remaining country sitemaps
             Object.keys(uriBuffer).map( countryCode => {
                 let list = uriBuffer[countryCode].uris;
@@ -169,7 +306,7 @@ async function buildSitemaps(index, type, docQuery, idField, lastModField, locat
                     sitemapFiles.push(writeSitemap(list, countryCode, type, uriBuffer[countryCode].count));
                 }
             } );
-            
+
             uriBuffer = [];
             break;
         }
@@ -181,7 +318,13 @@ async function buildSitemaps(index, type, docQuery, idField, lastModField, locat
                 scroll: scrollTimeout
             })
         )
-    }    
+    }
+
+    if(scrollId) {
+        try { await client.clearScroll({ body: { scroll_id: scrollId } }); }
+        catch(e) { console.error('clearScroll', e.message); }
+    }
+    console.log(type, 'documents read:', allDocs, 'sitemaps:', sitemapFiles.length);
 
     return sitemapFiles;
 }
@@ -199,17 +342,17 @@ function writeSitemap(uriList, country, type, number=0, index=false) {
             content += '<sitemap><loc>' + u.uri + '</loc><lastmod>'+u.lastmod+'</lastmod></sitemap>\n';
         else {
             content += '<url><loc>' + u.uri + '</loc>\n';
-            
+
             if(u.lastmod && isValidSitemapDate(u.lastmod))
                 content+='<lastmod>'+u.lastmod+'</lastmod>\n';
-            
+
             if(!index) {
                 if(u.changefreq)
                     content+='<changefreq>'+u.changefreq+'</changefreq>\n';
                 content+='</url>\n';
             }
         }
-            
+
     });
     if(index)
         content += '</sitemapindex>';
@@ -218,7 +361,7 @@ function writeSitemap(uriList, country, type, number=0, index=false) {
 
     console.log('Writing:', filename);
     if(!args.test)
-        fs.writeFileSync('./sitemaps/' + filename, content);
+        fs.writeFileSync(path.join(TMP_DIR, filename), content);
     return filename;
 }
 
@@ -248,14 +391,14 @@ async function getCountriesFile(path) {
         console.error('Error trying to read countries file:', e);
         process.exit(2);
     }
-    
+
     return data;
 }
 
 function isValidSitemapDate(date) {
     let dateObj = new Date(date);
-    
+
     if(isNaN(dateObj) || dateObj.getFullYear() < 2000) return false;
-    
+
     return true;
 }
