@@ -54,6 +54,11 @@ let baseUrl = args.baseUrl + ( (!args.baseUrl.match(/\/$/))? '/' : '' );
 const OUT_DIR = './sitemaps';
 const TMP_DIR = './sitemaps.tmp';
 const OLD_DIR = './sitemaps.old';
+// Fecha de la última corrida en la que cambió algún sitemap de compradores o
+// proveedores. Fuera de OUT_DIR para no publicarla. La lee el monitor del
+// servidor: si pasan 3 días sin cambios, el ETL de origen probablemente se trabó.
+const LAST_CHANGE_FILE = './sitemaps-last-change.txt';
+let changedSitemaps = 0;
 
 // Personas físicas de GT que no se listan. Misma regla que
 // sociedad-web-front/lib/person-indexing.js, que les pone noindex: persona por
@@ -101,7 +106,11 @@ async function run() {
     console.log('Generating sitemap index...');
     buildSitemapIndex(sitemaps, args.baseUrl, args.location);
 
-    if(!args.test) publish();
+    if(!args.test) {
+        publish();
+        if(changedSitemaps > 0) fs.writeFileSync(LAST_CHANGE_FILE, new Date().toISOString() + '\n');
+        console.log('Changed buyer/supplier sitemaps:', changedSitemaps);
+    }
     console.log('Finished');
 }
 
@@ -191,6 +200,10 @@ function buildSitemapIndex(filenames, base, location) {
         if(!args.test && previous[uri] && sameContent(file)) {
             lastmod = previous[uri];
             unchanged++;
+        }
+        else if(file != 'sitemap_countries.xml') {
+            // El de países cambia siempre (su lastmod es la fecha de la corrida).
+            changedSitemaps++;
         }
         uris.push({uri: uri, lastmod: lastmod} );
         if(args.test) console.log('Index URI:', uri);

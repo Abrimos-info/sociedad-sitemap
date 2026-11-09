@@ -1,2 +1,5 @@
 node_modules
 sitemaps
+sitemaps.tmp
+sitemaps.old
+sitemaps-last-change.txt
